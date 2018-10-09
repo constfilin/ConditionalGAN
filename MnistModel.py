@@ -20,17 +20,18 @@ class ConditionalGAN(object):
         self.build_model()
 
     def build_model(self):
+        # Here's the model we are building: http://prntscr.com/l46dnz
         self.fakes_generator     = self.get_generator_net(self.z,self.y)
         self.reals_discriminator = self.get_discriminator_net(self.images,self.y,False)
         self.fakes_discriminator = self.get_discriminator_net(self.fakes_generator[0],self.y,True)
 
-        # TODO: define how the generator loss is counted
-        self.generator_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like (self.fakes_discriminator[0]) ,logits=self.fakes_discriminator[1]))
         # Discriminator loss - apparently - consists of loss in fake images that the discriminator will recognize as reals AND
         # the loss in real images that discriminator recognize as fakes
         discriminator_fakes_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.zeros_like(self.fakes_discriminator[0]) ,logits=self.fakes_discriminator[1]))
         discriminator_reals_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like (self.reals_discriminator[0]),logits=self.reals_discriminator[1]))
-        self.discriminator_loss = discriminator_reals_loss+discriminator_fakes_loss
+        self.discriminator_loss  = tf.add(discriminator_reals_loss,discriminator_fakes_loss,name="self.discriminator_loss")
+        # TODO: define how the generator loss is counted
+        self.generator_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like (self.fakes_discriminator[0]) ,logits=self.fakes_discriminator[1]),name="self.generator_loss")
 
         self.saver   = tf.train.Saver()
 
@@ -38,18 +39,18 @@ class ConditionalGAN(object):
 
         all_vars                = tf.trainable_variables()
 
-        discriminator_vars      = [var for var in all_vars if var.name.startswith("discriminator/")]
-        discriminator_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5).minimize(self.discriminator_loss,var_list=discriminator_vars)
         discriminator_summary   = tf.summary.merge([
             tf.summary.scalar("discriminator_loss",self.discriminator_loss), 
             tf.summary.histogram("images_discriminator_pro",self.reals_discriminator[0])])
+        discriminator_vars      = [var for var in all_vars if var.name.startswith("discriminator/")]
+        discriminator_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="discriminator_optimizer").minimize(self.discriminator_loss,var_list=discriminator_vars)
 
-        generator_vars          = [var for var in all_vars if var.name.startswith("generator/")]
-        generator_optimizer     = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5).minimize(self.generator_loss,var_list=generator_vars)
         generator_summary       = tf.summary.merge([
             tf.summary.scalar("generator_loss",self.generator_loss), 
             tf.summary.histogram("fakes_discriminator_pro",self.fakes_discriminator[0]),
             tf.summary.image("fakes_generator_out",self.fakes_generator[0])])
+        generator_vars          = [var for var in all_vars if var.name.startswith("generator/")]
+        generator_optimizer     = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="generator_optimizer").minimize(self.generator_loss,var_list=generator_vars)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
