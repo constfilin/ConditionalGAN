@@ -18,20 +18,16 @@ This code takes advantage of this prior work and takes it further by:
 - python 3.X
 
 ## Usage
-
   Download mnist:
   
     $ python download.py mnist
-  
   Train:
   
     $ python main.py --operation train
-  
   Test:
   
     $ python main.py --operation test
-  
-  Visualization:
+  Visualize:
   
     $ python main.py --operation visualize
 
