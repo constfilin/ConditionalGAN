@@ -4,8 +4,9 @@ import numpy as np
 class MnistData(object):
 
     def __init__(self):
+        self.name  = "mnist"
         self.shape = [28,28,1] # This is hardcoded in the downloaded data
-        self.data, self.data_y = self.load(os.path.join("./data", "mnist"))
+        self.data, self.data_y = self.load(os.path.join("data", "mnist"))
 
     def load(self,data_dir):
 

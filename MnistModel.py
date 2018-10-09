@@ -32,6 +32,8 @@ class ConditionalGAN(object):
         discriminator_reals_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like (self.reals_discriminator[0]),logits=self.reals_discriminator[1]))
         self.discriminator_loss = discriminator_reals_loss+discriminator_fakes_loss
 
+        self.saver   = tf.train.Saver()
+
     def train(self,model_path,log_path,sample_path,learning_rate):
 
         all_vars                = tf.trainable_variables()
@@ -57,7 +59,7 @@ class ConditionalGAN(object):
             summary_writer = tf.summary.FileWriter(log_path,graph=sess.graph)
 
             for step in range(0,10000):
-                images, labels = self.data.get_next_batch(step,self.images.shape[0])
+                images, labels = self.data.get_next_batch(step,self.get_batch_size())
 
                 # Get the z
                 batch_z = np.random.uniform(-1,1,size=self.z.shape)
@@ -76,19 +78,19 @@ class ConditionalGAN(object):
                 if (step%50)==0:
                     discriminator_loss = sess.run(self.discriminator_loss, feed_dict={self.images: images, self.z: batch_z, self.y: labels})
                     generator_loss     = sess.run(self.generator_loss    , feed_dict={self.z: batch_z, self.y: labels})
-                    print("Step %4d: D: loss = %.7f G: loss=%.7f " % (step,discriminator_loss,generator_loss))
+                    print("Step %4d: D: loss=%.7f G: loss=%.7f " % (step,discriminator_loss,generator_loss))
 
                     sample_images      = sess.run(self.fakes_generator[0],feed_dict={self.z: batch_z, self.y: sample_label(self.y.shape)})
                     save_images(sample_images,[8,8],"./%s/train_%04d.png" % (sample_path,step))
-                    tf.train.Saver.save(sess,model_path)
+                    self.saver.save(sess,model_path)
 
-            save_path = tf.train.Saver.save(sess,model_path)
+            save_path = self.saver.save(sess,model_path)
             print("Model saved in file: %s" % (save_path))
 
     def test(self,model_path,sample_path):
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            tf.train.Saver.restore(sess,model_path)
+            self.saver.restore(sess,model_path)
 
             sample_z = np.random.uniform(1,-1,size=self.z.shape)
             output   = sess.run(self.fakes_generator[0],feed_dict={self.z:sample_z,self.y:sample_label(self.y.shape)})
@@ -100,20 +102,23 @@ class ConditionalGAN(object):
     def visual(self,model_path,visual_path):
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            tf.train.Saver.restore(sess,model_path)
+            self.saver.restore(sess,model_path)
 
             # visualize the weights 1 or you can change weight_2 .
             conv_weights = sess.run([tf.get_collection('weight_2')])
             vis_square(visual_path,conv_weights[0][0].transpose(3, 0, 1, 2), type=1)
 
             # visualize the activation 2
-            images,labels = self.data.get_next_batch(0,self.images.shape[0])
+            images,labels = self.data.get_next_batch(0,self.get_batch_size())
             ac = sess.run([tf.get_collection('ac_2')],feed_dict={
                 self.images: images[:64], 
                 self.z:      np.random.uniform(-1,1,size=self.z.shape), 
                 self.y:      sample_label(self.y.shape)})
             vis_square(visual_path,ac[0][0].transpose(3, 1, 2, 0), type=0)
             print("the visualization finished.")
+
+    def get_batch_size(self):
+        return int(self.images.shape[0])
 
     def get_generator_net(self, z, y):
         with tf.variable_scope('generator') as scope:
@@ -127,11 +132,11 @@ class ConditionalGAN(object):
 
             c1 = self.data.shape[0] // 4
             d2 = tf.nn.relu(batch_normal(fully_connect(d1,output_size=c1*c1*2*64,scope='gen_fully2'),scope='gen_bn2'))
-            d2 = tf.reshape(d2, [self.images.shape[0], c1, c1, 64 * 2])
+            d2 = tf.reshape(d2, [self.get_batch_size(), c1, c1, 64 * 2])
             d2 = conv_cond_concat(d2, yb)
 
             c2 = self.data.shape[0] // 2
-            d3 = tf.nn.relu(batch_normal(de_conv(d2, output_shape=[self.images.shape[0], c2, c2, 128], name='gen_deconv1'), scope='gen_bn3'))
+            d3 = tf.nn.relu(batch_normal(de_conv(d2, output_shape=[self.get_batch_size(), c2, c2, 128], name='gen_deconv1'), scope='gen_bn3'))
             d3 = conv_cond_concat(d3, yb)
 
             d4 = de_conv(d3,output_shape=self.images.shape, name='gen_deconv2')
@@ -164,7 +169,7 @@ class ConditionalGAN(object):
             conv2 = lrelu(batch_normal(conv2,scope='dis_bn1'))
             tf.add_to_collection('ac_2',conv2)
 
-            conv2 = tf.reshape(conv2,[self.images.shape[0],-1])
+            conv2 = tf.reshape(conv2,[self.get_batch_size(),-1])
             conv2 = tf.concat([conv2,y],1)
 
             f1 = lrelu(batch_normal(fully_connect(conv2,output_size=1024,scope='dis_fully1'),scope='dis_bn2',reuse=reuse))
