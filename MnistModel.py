@@ -87,17 +87,24 @@ class ConditionalGAN(object):
             save_path = self.saver.save(sess,model_path)
             print("Model saved in file: %s" % (save_path))
 
-    def test(self,model_path,sample_path):
+    def test(self,model_path,sample_path,count):
+        def get_unique_filename( sample_path ):
+            for i in range(0,10000):
+                image_path = "./{}/test{:02d}_{:04d}.png".format(sample_path,0,i)
+                if not os.path.isfile(image_path):
+                    return image_path
+            raise Exception("Cannot find unique file name in %s" % (sample_path))            
+        np.random.seed()
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             self.saver.restore(sess,model_path)
-
-            sample_z = np.random.uniform(1,-1,size=self.z.shape)
-            output   = sess.run(self.fakes_generator[0],feed_dict={self.z:sample_z,self.y:sample_label(self.y.shape)})
-
-            image_path = "./{}/test{:02d}_{:04d}.png".format(sample_path,0,0)
-            save_images(output,[8,8],image_path)
-            print("Test finished, check out %s" % (image_path))
+            for cnt in range(0,count):
+                sample_z   = np.random.uniform(1,-1,size=self.z.shape)
+                output     = sess.run(self.fakes_generator[0],feed_dict={self.z:sample_z,self.y:sample_label(self.y.shape)})
+                image_path = get_unique_filename(sample_path)
+                save_images(output,[8,8],image_path)
+                print("A sample is saved in %s" % (image_path))
+        print("Testing is done")
 
     def visual(self,model_path,visual_path):
         with tf.Session() as sess:

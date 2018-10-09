@@ -12,6 +12,7 @@ flags.DEFINE_integer("y_dim"      , 10              , "the dimension of conditio
 flags.DEFINE_string ("model_path" , "models"        , "the path of model")
 flags.DEFINE_string ("log_path"   , "logs"          , "the path of tensorflow's log")
 flags.DEFINE_string ("sample_path", "samples"       , "the dir of sample images")
+flags.DEFINE_integer("sample_cnt" , 1               , "number of samples to generate")
 flags.DEFINE_float  ("learn_rate" , 0.0002          , "the learning rate for gan")
 flags.DEFINE_string ("visual_path", "visualization" , "the path of visuzation images")
 
@@ -41,7 +42,7 @@ def main(_):
         cgan.train(save_path,log_path,sample_path,flags.FLAGS.learn_rate)
     elif flags.FLAGS.operation == "test":
         make_paths(sample_path)
-        cgan.test(save_path,sample_path)
+        cgan.test(save_path,sample_path,flags.FLAGS.sample_cnt)
     elif flags.FLAGS.operation == "visualize":
         make_paths(visual_path)
         cgan.visual(save_path,visual_path)
