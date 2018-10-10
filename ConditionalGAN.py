@@ -4,12 +4,42 @@ import numpy as np
 from utils import *
 from ops import *
 
-def sample_label(shape):
+def get_unique_filename( sample_path ):
+    for i in range(0,10000):
+        image_path = "./{}/test{:02d}_{:04d}.png".format(sample_path,0,i)
+        if not os.path.isfile(image_path):
+            return image_path
+    raise Exception("Cannot find unique file name in %s" % (sample_path))
+
+def get_random_labels(shape):
     result = np.zeros(shape,dtype=np.float)
     for i in range(0,shape[0]):
-        result[i,i//8] = 1.0
-        #result[i,ndx] = 1.0
+        ndx = np.random.randint(0,shape[1])
+        result[i,ndx] = 1.0
     return result
+
+def save_images(image_path,images):
+    def reshape_to_square(images):
+        # Here images are in shape (some_size,height,width,channels)
+        # I.e. we have some number (most likely batch size) of images all stretched out in
+        # one long line. It is more convenient to re-arrange the images into a smallest
+        # square that can fit them all
+        square_size = int(np.sqrt(int(images.shape[0])))
+        if square_size*square_size<images.shape[0]:
+            square_size = square_size+1
+        h   = images.shape[1]
+        w   = images.shape[2]
+        # The images might me black/white (1 channels) or color (3 channels). We allocate
+        # for 3 channels (thereby converting any blck/white images to color)
+        img = np.zeros((h*square_size,w*square_size,3))
+        for idx,image in enumerate(images):
+            min_h = (idx %  square_size) * h
+            min_w = (idx // square_size) * w
+            img[min_h:min_h+h,min_w:min_w+w,:] = image
+        return img
+    # TODO: replace with imageio.imwrite
+    scipy.misc.imsave(image_path,reshape_to_square(images))
+    return image_path
 
 class ConditionalGAN(object):
 
@@ -81,53 +111,51 @@ class ConditionalGAN(object):
                     discriminator_loss = sess.run(self.discriminator_loss, feed_dict={self.images: images, self.z: batch_z, self.y: labels})
                     generator_loss     = sess.run(self.generator_loss    , feed_dict={self.z: batch_z, self.y: labels})
                     print("Step %4d: D: loss=%.7f G: loss=%.7f " % (step,discriminator_loss,generator_loss))
-
-                    sample_images      = sess.run(self.fakes_generator[0],feed_dict={self.z: batch_z, self.y: sample_label(self.y.shape)})
-                    save_images(sample_images,[8,8],"./%s/train_%04d.png" % (sample_path,step))
+                    save_images("%s/train_%04d.png" % (sample_path,step),self.get_random_images(sess,self.get_batch_size()))
                     self.saver.save(sess,model_path)
 
             save_path = self.saver.save(sess,model_path)
             print("Model saved in file: %s" % (save_path))
 
     def test(self,model_path,sample_path,count):
-        def get_unique_filename( sample_path ):
-            for i in range(0,10000):
-                image_path = "./{}/test{:02d}_{:04d}.png".format(sample_path,0,i)
-                if not os.path.isfile(image_path):
-                    return image_path
-            raise Exception("Cannot find unique file name in %s" % (sample_path))            
-        np.random.seed()
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            self.saver.restore(sess,model_path)
-            for cnt in range(0,count):
-                sample_z   = np.random.uniform(1,-1,size=self.z.shape)
-                output     = sess.run(self.fakes_generator[0],feed_dict={self.z:sample_z,self.y:sample_label(self.y.shape)})
-                image_path = get_unique_filename(sample_path)
-                save_images(output,[8,8],image_path)
-                print("A sample is saved in %s" % (image_path))
-        print("Testing is done")
+        with self.restore_model(model_path) as sess:
+            print("A sample is saved in %s" % (save_images(get_unique_filename(sample_path),self.get_random_images(sess,count))))
 
     def visual(self,model_path,visual_path):
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            self.saver.restore(sess,model_path)
-
+        with self.restore_model(model_path) as sess:
             # visualize the weights 1 or you can change weight_2 .
             conv_weights = sess.run([tf.get_collection('weight_2')])
             vis_square(visual_path,conv_weights[0][0].transpose(3, 0, 1, 2), type=1)
-
             # visualize the activation 2
             images,labels = self.data.get_next_batch(0,self.get_batch_size())
             ac = sess.run([tf.get_collection('ac_2')],feed_dict={
                 self.images: images[:64], 
                 self.z:      np.random.uniform(-1,1,size=self.z.shape), 
-                self.y:      sample_label(self.y.shape)})
+                self.y:      get_random_labels(self.y.shape)})
             vis_square(visual_path,ac[0][0].transpose(3, 1, 2, 0), type=0)
             print("the visualization finished.")
 
     def get_batch_size(self):
         return int(self.images.shape[0])
+
+    def restore_model(self,model_path):
+        sess = tf.Session()
+        sess.run(tf.global_variables_initializer())
+        self.saver.restore(sess,model_path)
+        return sess
+
+    def get_random_images(self,sess,count):
+        np.random.seed()
+        result = None
+        for i in range(0,count,self.get_batch_size()):
+            batch = sess.run(self.fakes_generator[0],feed_dict={
+                self.z : np.random.uniform(1,-1,size=self.z.shape),
+                self.y : get_random_labels(self.y.shape)})
+            if result is None:
+                result = batch
+            else:
+                result = np.concatenate((result,batch))
+        return result[0:count]
 
     def get_generator_net(self, z, y):
         with tf.variable_scope('generator') as scope:

@@ -48,13 +48,14 @@ class MnistData(Data):
         np.random.seed(seed)
         np.random.shuffle(y)
 
-        # convert label to one-hot
+        # Convert label to one-hot. The constant 10 in this case comes from the number of
+        # different labels in the data set. In case of MNIST there are 10 digits and 10 labels
         y_vec = np.zeros((len(y),10),dtype=np.float)
         for i,label in enumerate(y):
             y_vec[i,int(label)] = 1.0
 
         # Normalize the images vector
-        return np.array(X/255.),np.array(y_vec)
+        return np.array(X/255.),y_vec
 
 class CelebAData(Data):
 
