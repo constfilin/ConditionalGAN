@@ -27,9 +27,6 @@ This code takes advantage of this prior work and takes it further by:
   Test:
   
     $ python main.py --operation test
-  Visualize:
-  
-    $ python main.py --operation visualize
 
 ## Reference code
 [Conditional-GAN](https://github.com/zhangqianhui/Conditional-GAN/)
