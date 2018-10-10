@@ -1,11 +1,12 @@
 import os
 import tensorflow as tf
 
-from MnistData  import MnistData
+from Data       import MnistData
 from MnistModel import ConditionalGAN
 
 flags = tf.app.flags
 flags.DEFINE_string ("operation"  , "test"          , "what are we going to be doing - train, test, visualize")
+flags.DEFINE_string ("data"       , "mnist"         , "data we are working with - mnist, celebA, lsun")
 flags.DEFINE_integer("batch_size" , 64              , "the batch number")
 flags.DEFINE_integer("z_dim"      , 100             , "the dimension of noise z")
 flags.DEFINE_integer("y_dim"      , 10              , "the dimension of condition y")
@@ -30,7 +31,13 @@ def make_paths(*paths):
 
 def main(_):
     
-    data = MnistData()
+    if flags.FLAGS.data=="mnist":
+        data = MnistData()
+    elif flags.FLAGS.data=="celebA":
+        data = CelebAData()
+    else:
+        raise ValueError("Data %s is not supported" % (flags.FLAGS.data))
+
     cgan = ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim,flags.FLAGS.y_dim)
 
     # Model, logs, samples and visuals are all going to be saved in the folder dependent on the name of the data (i.e. mnist, celebA, lsun etc)

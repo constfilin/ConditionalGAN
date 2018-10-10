@@ -5,10 +5,11 @@ from utils import *
 from ops import *
 
 def sample_label(shape):
-    label_vector = np.zeros(shape,dtype=np.float)
+    result = np.zeros(shape,dtype=np.float)
     for i in range(0,shape[0]):
-        label_vector[i,i//8] = 1.0
-    return label_vector
+        result[i,i//8] = 1.0
+        #result[i,ndx] = 1.0
+    return result
 
 class ConditionalGAN(object):
 
