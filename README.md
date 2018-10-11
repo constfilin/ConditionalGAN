@@ -21,13 +21,41 @@ This code takes advantage of this prior work and takes it further by:
   Download mnist:
   
     $ python download.py mnist
-  Train:
-  
-    $ python main.py --operation train
-  Test:
-  
-    $ python main.py --operation test
+  Train & Test:
+```  
+    (DeepLearning) cf@cfdell:ConditionalGAN$ python main.py --help
 
+       USAGE: main.py [flags]
+flags:
+
+main.py:
+  --batch_size: the batch number
+    (default: '64')
+    (an integer)
+  --data: data we are working with - mnist, celebA, lsun
+    (default: 'mnist')
+  --data_path: location of the data on the file system
+    (default: 'data')
+  --learn_rate: the learning rate for gan
+    (default: '0.0002')
+    (a number)
+  --log_path: the path of tensorflow's log
+    (default: 'logs')
+  --model_path: the folder where to save/restore the model
+    (default: 'models')
+  --operation: what are we going to be doing - train, test
+    (default: 'test')
+  --sample_cnt: number of samples to generate
+    (default: '1')
+    (an integer)
+  --sample_path: the dir of sample images
+    (default: 'samples')
+  --z_dim: the dimension of noise z
+    (default: '100')
+    (an integer)
+
+Try --helpfull to get a list of all flags.
+```
 ## Reference code
 [Conditional-GAN](https://github.com/zhangqianhui/Conditional-GAN/)
 
