@@ -13,10 +13,10 @@ def conv2d(input_,output_dim,k_h=3,k_w=3,d_h=2,d_w=2,name="conv2d"):
         conv    = tf.reshape(tf.nn.bias_add(conv, biases),conv.get_shape())
         return conv, weights
 
-def de_conv(input_,output_shape,k_h=3,k_w=3,d_h=2,d_w=2,stddev=0.02,name="deconv2d",with_w=False):
+def de_conv(input_,output_shape,k_h=3,k_w=3,d_h=2,d_w=2,stddev=0.02,name="deconv2d",with_w=False,initializer=variance_scaling_initializer()):
     with tf.variable_scope(name):
         # filter : [height, width, output_channels, in_channels]
-        w = tf.get_variable('w', [k_h, k_w, output_shape[-1], input_.get_shape()[-1]],initializer=variance_scaling_initializer())
+        w = tf.get_variable('w', [k_h, k_w, output_shape[-1], input_.get_shape()[-1]],initializer=initializer)
         try:
             deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,strides=[1, d_h, d_w, 1])
         except AttributeError:
@@ -30,10 +30,10 @@ def de_conv(input_,output_shape,k_h=3,k_w=3,d_h=2,d_w=2,stddev=0.02,name="deconv
         else:
             return deconv
 
-def fully_connect(input_, output_size, scope=None, with_w=False):
+def fully_connect(input_, output_size, scope=None, with_w=False,initializer=variance_scaling_initializer()):
     shape = input_.get_shape().as_list()
     with tf.variable_scope(scope or "Linear"):
-        matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,variance_scaling_initializer())
+        matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,initializer=initializer)
         bias   = tf.get_variable("bias",   [output_size], initializer=tf.constant_initializer(0.0))
         if with_w:
             return tf.matmul(input_,matrix)+bias, matrix, bias

@@ -5,17 +5,24 @@ import Data
 import ConditionalGAN
 
 flags = tf.app.flags
-flags.DEFINE_string ("operation"  , "test"          , "what are we going to be doing - train, test, visualize")
-flags.DEFINE_string ("data"       , "mnist"         , "data we are working with - mnist, celebA, lsun")
-flags.DEFINE_integer("batch_size" , 64              , "the batch number")
-flags.DEFINE_integer("z_dim"      , 100             , "the dimension of noise z")
-flags.DEFINE_integer("y_dim"      , 10              , "the dimension of condition y")
-flags.DEFINE_string ("model_path" , "models"        , "the path of model")
-flags.DEFINE_string ("log_path"   , "logs"          , "the path of tensorflow's log")
-flags.DEFINE_string ("sample_path", "samples"       , "the dir of sample images")
-flags.DEFINE_integer("sample_cnt" , 1               , "number of samples to generate")
-flags.DEFINE_float  ("learn_rate" , 0.0002          , "the learning rate for gan")
-flags.DEFINE_string ("visual_path", "visualization" , "the path of visuzation images")
+flags.DEFINE_string ("operation"          , "test"          , "what are we going to be doing - train, test")
+flags.DEFINE_string ("data"               , "mnist"         , "data we are working with - mnist, celebA, wines")
+flags.DEFINE_integer("z_dim"              , 100             , "the dimension of noise z")
+flags.DEFINE_integer("batch_size"         , 64              , "the batch size (the larger, the faster is training but if too large then model won't fit in memory and training is slow)")
+# Training arguments
+flags.DEFINE_float  ("learn_rate"         , 0.0002          , "the learning rate for GAN")
+flags.DEFINE_integer("training_steps"     , 10000           , "number of training steps")
+flags.DEFINE_integer("save_frequency"     , 50              , "how often (in training steps) to save the model to place defined by 'model_path'")
+flags.DEFINE_bool   ("show_count_loss"    , False           , "should the program show less at each save point (if true the output is more verbose but training is slower")
+flags.DEFINE_float  ("generator_advantage", 2.0             , "how many times run generator optimization per each run of discriminator optiomization. This helps prevent D loss going to 0")
+# Testing arguments
+flags.DEFINE_integer("samples"            , 1               , "number of samples to generate")
+flags.DEFINE_string ("samples_spec"       , "random"        , "samples specification - a comma separated list of one or many labels")
+# These rarely need changing
+flags.DEFINE_string ("data_path"          , "data"          , "location of the data on the file system")
+flags.DEFINE_string ("model_path"         , "models"        , "the folder where to save/restore the model")
+flags.DEFINE_string ("log_path"           , "logs"          , "the path of tensorflow's log")
+flags.DEFINE_string ("sample_path"        , "samples"       , "the dir of sample images")
 
 def append_to_paths(name,*paths):
     result = []
@@ -31,28 +38,31 @@ def make_paths(*paths):
 
 def main(_):
     
+    # Data, model, logs and samples are all going to be saved in the folder dependent on the name of the data (i.e. mnist, celebA, lsun etc)
+    [data_path,model_path,log_path,sample_path] = append_to_paths(flags.FLAGS.data,
+                                                                  flags.FLAGS.data_path,flags.FLAGS.model_path,flags.FLAGS.log_path,flags.FLAGS.sample_path)
     if flags.FLAGS.data=="mnist":
-        data = Data.MnistData()
+        data = Data.Mnist(data_path)
     elif flags.FLAGS.data=="celebA":
-        data = Data.CelebAData()
+        data = Data.CelebA(data_path,5000)
+    elif flags.FLAGS.data=="wines":
+        data = Data.Wines(data_path)
     else:
         raise ValueError("Data %s is not supported" % (flags.FLAGS.data))
 
-    cgan = ConditionalGAN.ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim,flags.FLAGS.y_dim)
-
-    # Model, logs, samples and visuals are all going to be saved in the folder dependent on the name of the data (i.e. mnist, celebA, lsun etc)
-    [model_path,log_path,sample_path,visual_path] = append_to_paths(data.name,flags.FLAGS.model_path,flags.FLAGS.log_path,flags.FLAGS.sample_path,flags.FLAGS.visual_path)
-    save_path = os.path.join(model_path,"model")
+    cgan = ConditionalGAN.ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim)
 
     if flags.FLAGS.operation == "train":
         make_paths(model_path,log_path,sample_path)
-        cgan.train(save_path,log_path,sample_path,flags.FLAGS.learn_rate)
+        cgan.train(model_path,log_path,sample_path,flags.FLAGS.training_steps,flags.FLAGS.learn_rate,flags.FLAGS.save_frequency,flags.FLAGS.show_count_loss,flags.FLAGS.generator_advantage)
     elif flags.FLAGS.operation == "test":
         make_paths(sample_path)
-        cgan.test(save_path,sample_path,flags.FLAGS.sample_cnt)
-    elif flags.FLAGS.operation == "visualize":
-        make_paths(visual_path)
-        cgan.visual(save_path,visual_path)
+        if flags.FLAGS.samples_spec=="random":
+            labels = data.get_random_labels((flags.FLAGS.samples,data.get_number_of_labels()))
+        else:
+            labels = data.get_labels_by_spec((flags.FLAGS.samples,data.get_number_of_labels()),flags.FLAGS.samples_spec)
+        print("\n".join(data.describe_labels(labels)))
+        cgan.test(model_path,sample_path,None,labels)
     else:
         print("Unknown operation %s" % (flags.FLAGS.operation))
 
