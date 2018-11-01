@@ -3,7 +3,7 @@ The test code for Conditional Generative Adversarial Nets using tensorflow.
 
 ## INTRODUCTION
 
-Tensorflow implements of [Conditional Generative Adversarial Nets](https://arxiv.org/abs/1411.1784).
+Tensorflow implementation of [Conditional Generative Adversarial Nets](https://arxiv.org/abs/1411.1784).
 The paper must be the first one to introduce Conditional GANS but it did not provide source codes.
 
 One attempt to create source code for CGAN was [made by zhangqianhui](https://github.com/zhangqianhui/Conditional-GAN/).
