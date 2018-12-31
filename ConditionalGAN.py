@@ -55,16 +55,19 @@ class ConditionalGAN(object):
         samples_input_noise  = np.random.uniform(1,-1,size=self.noise.shape)
         samples_input_labels = self.data.get_random_labels(self.labels.shape)
  
-        sess,last_saved_step = self.restore_model(model_path)
+        sess,last_saved_step     = self.restore_model(model_path)
+        real_generator_advantage = max(1.0,generator_advantage)
+        generator_step          = 0
         with sess:
             summary_writer = tf.summary.FileWriter(log_path,graph=sess.graph)
             start = time.time()-0.000001 # to avoid division by 0
             for step in range(last_saved_step,training_steps):
                 now   = time.time()
                 speed = (step if step>0 else 1)/(now-start)
-                print("{:s}: step is {:d}, speed is {:.4f} step/sec, ETA is {:s}".format(
+                print("{:s}: d step is {:d}, g step is {:d}, speed is {:.4f} step/sec, ETA is {:s}".format(
                     time.strftime("%D %T"),
                     step,
+                    generator_step,
                     speed,
                     time.strftime("%D %T",time.localtime(now+((training_steps-step)/speed)))))
 
@@ -73,24 +76,38 @@ class ConditionalGAN(object):
                 # Get the z
                 batch_z = np.random.uniform(-1,1,size=self.noise.shape).astype(np.float32)
 
-                for i in range(0,int(max(1,1/generator_advantage))):
-                    _, summary_str = sess.run([discriminator_optimizer,discriminator_summary],feed_dict={
-                        self.images: images, 
-                        self.noise : batch_z, 
-                        self.labels: labels})
+                discriminator_feed_dict = { 
+                    self.images: images,
+                    self.noise : batch_z,
+                    self.labels: labels
+                }
+                generator_feed_dict = {
+                    self.noise : batch_z, 
+                    self.labels: labels
+                }
+                # Dynamically adjust the generator advantage but not more often than save_frequency
+                if ((step%save_frequency)==0) and (show_count_loss or (generator_advantage<=0)):
+                    _, summary_str,discriminator_loss = sess.run([discriminator_optimizer,discriminator_summary,self.discriminator_loss],feed_dict=discriminator_feed_dict)
                     summary_writer.add_summary(summary_str,step)
-
-                for i in range(0,int(max(1,generator_advantage))):
-                    _, summary_str = sess.run([generator_optimizer,generator_summary],feed_dict={
-                        self.noise : batch_z, 
-                        self.labels: labels})
+                    while generator_step<((step*real_generator_advantage)-1):
+                        _, summary_str = sess.run([generator_optimizer,generator_summary],feed_dict=generator_feed_dict)
+                        summary_writer.add_summary(summary_str,generator_step)
+                        generator_step += 1
+                    # Run one last time, this time counting the loss
+                    _, summary_str,generator_loss = sess.run([generator_optimizer,generator_summary,self.generator_loss],feed_dict=generator_feed_dict)
+                    summary_writer.add_summary(summary_str,generator_step)
+                    generator_step += 1
+                    real_generator_advantage = generator_loss/discriminator_loss
+                    print("Step {:4d}: discriminator loss={:.7f}, generator loss={:.7f}, generator advantage={:.7f}".format(step,discriminator_loss,generator_loss,real_generator_advantage))
+                else:
+                    _, summary_str = sess.run([discriminator_optimizer,discriminator_summary],feed_dict=discriminator_feed_dict)
                     summary_writer.add_summary(summary_str,step)
+                    while generator_step<(step*real_generator_advantage):
+                        _, summary_str = sess.run([generator_optimizer,generator_summary],feed_dict=generator_feed_dict)
+                        summary_writer.add_summary(summary_str,generator_step)
+                        generator_step += 1
 
                 if (step%save_frequency)==0:
-                    if show_count_loss:
-                        discriminator_loss = sess.run(self.discriminator_loss, feed_dict={self.images: images, self.noise: batch_z, self.labels: labels})
-                        generator_loss     = sess.run(self.generator_loss    , feed_dict={self.noise: batch_z, self.labels: labels})
-                        print("Step {:4d}: D: loss={:.7f} G: loss={:.7f}".format(step,discriminator_loss,generator_loss))
                     save_image("{:s}/train_{:04d}.png".format(sample_path,step),self.generate_images(sess,samples_input_noise,samples_input_labels))
                     print("Step {:4d}: model is saved in {:s}".format(step,self.saver.save(sess,model_path+"/"+self.data.name,global_step=step)))
                     last_saved_step = step

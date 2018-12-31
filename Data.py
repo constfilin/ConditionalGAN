@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import numpy as np
 
 from utils import *
@@ -10,7 +11,7 @@ from utils import *
 class Data(object):
 
     def __init__(self,name,attribs,data,labels,labels_are_mutually_exclusive=False):
-        self.name   = name
+        self.name    = name
         self.attribs = attribs
         self.data    = data
         self.labels  = labels
@@ -35,11 +36,11 @@ class Data(object):
         ro_num = (len(self.data)//batch_size) - 1
         if step % ro_num == 0:
             # Shuffle the data
-            length = len(self.data)
-            perm = np.arange(length)
-            np.random.shuffle(perm)
-            self.data   = self.data[perm]
-            self.labels = self.labels[perm]
+            seed = int(time.time()*1000) % ((2**32)-1);
+            np.random.seed(seed)
+            np.random.shuffle(self.data)
+            np.random.seed(seed)
+            np.random.shuffle(self.labels)
         ndx_min = (step%ro_num)*batch_size
         ndx_max = ndx_min+batch_size
         return self.data[ndx_min:ndx_max],self.labels[ndx_min:ndx_max]
@@ -115,6 +116,42 @@ class Mnist(Data):
         loaded = np.fromfile(labels_file,dtype=np.uint8)
         labels = np.asarray(loaded[8:].reshape((data.shape[0])).astype(np.float))
         return data,labels
+
+class Banners(Data):
+
+    def __init__(self,data_path):
+        super(Banners,self).__init__(
+            "banners",
+            *self.load(data_path,[128,128,3]),
+            True)
+
+    @staticmethod
+    def load(data_path,shape_not_used):
+        attribs = [f for f in os.listdir(data_path) if os.path.isdir(os.path.join(data_path,f))]
+        data    = []
+        y       = []
+
+        # Read the images
+        imagere = re.compile("^.+\.(png|jpg)$",re.I)
+        for ndx,a in enumerate(attribs):
+            attrib_images_path = os.path.join(data_path,a)
+            for f in os.listdir(attrib_images_path):
+                image_path = os.path.join(attrib_images_path,f)
+                if imagere.match(f) and os.path.isfile(image_path):
+                    # Assume that all the images are of the same shape equal to that of the first image
+                    # Igore the shape argument
+                    if len(data)>0:
+                        data.append(read_image(image_path,data[0].shape[:2]))
+                    else:
+                        data.append(read_image(image_path))
+                    y.append(ndx)
+
+        # Convert labels to one-hot.
+        labels = np.zeros((len(y),len(attribs)),dtype=np.float)
+        for i,label in enumerate(y):
+            labels[i,label] = 1.0
+
+        return attribs,data,labels
 
 class ImagesWithAttributes(Data):
 

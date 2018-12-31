@@ -14,7 +14,9 @@ flags.DEFINE_float  ("learn_rate"         , 0.0002          , "the learning rate
 flags.DEFINE_integer("training_steps"     , 10000           , "number of training steps")
 flags.DEFINE_integer("save_frequency"     , 50              , "how often (in training steps) to save the model to place defined by 'model_path'")
 flags.DEFINE_bool   ("show_count_loss"    , False           , "should the program show less at each save point (if true the output is more verbose but training is slower")
-flags.DEFINE_float  ("generator_advantage", 2.0             , "how many times run generator optimization per each run of discriminator optiomization. This helps prevent D loss going to 0")
+flags.DEFINE_float  ("generator_advantage", 0.0             , "how many times run generator optimization per each run of discriminator optimization.\n"+
+                     "Any value <=0 means dynamic adjustment of advantage to keep G and D loss about equal.\n"+
+                     "This helps prevent D loss going to 0")
 # Testing arguments
 flags.DEFINE_integer("samples"            , 1               , "number of samples to generate")
 flags.DEFINE_string ("samples_spec"       , "random"        , "samples specification - a comma separated list of one or many labels")
@@ -43,6 +45,8 @@ def main(_):
                                                                   flags.FLAGS.data_path,flags.FLAGS.model_path,flags.FLAGS.log_path,flags.FLAGS.sample_path)
     if flags.FLAGS.data=="mnist":
         data = Data.Mnist(data_path)
+    elif flags.FLAGS.data=="banners":
+        data = Data.Banners(data_path)
     elif flags.FLAGS.data=="celebA":
         data = Data.CelebA(data_path,5000)
     elif flags.FLAGS.data=="wines":
