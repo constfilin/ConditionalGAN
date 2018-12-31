@@ -117,16 +117,16 @@ class Mnist(Data):
         labels = np.asarray(loaded[8:].reshape((data.shape[0])).astype(np.float))
         return data,labels
 
-class Banners(Data):
+class ImagesInFolder(Data):
 
-    def __init__(self,data_path):
-        super(Banners,self).__init__(
-            "banners",
-            *self.load(data_path,[128,128,3]),
+    def __init__(self,name,data_path):
+        super(ImagesInFolder,self).__init__(
+            name,
+            *self.load(data_path),
             True)
 
     @staticmethod
-    def load(data_path,shape_not_used):
+    def load(data_path,shape_not_used=None):
         attribs = [f for f in os.listdir(data_path) if os.path.isdir(os.path.join(data_path,f))]
         data    = []
         y       = []
@@ -152,6 +152,16 @@ class Banners(Data):
             labels[i,label] = 1.0
 
         return attribs,data,labels
+
+class Banners(ImagesInFolder):
+
+    def __init__(self,data_path):
+        super(Banners,self).__init__("banners",data_path)
+
+class Artists(ImagesInFolder):
+
+    def __init__(self,data_path):
+        super(Artists,self).__init__("artists",data_path)
 
 class ImagesWithAttributes(Data):
 
