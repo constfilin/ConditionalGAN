@@ -13,7 +13,7 @@ flags.DEFINE_integer("batch_size"         , 64              , "the batch size (t
 flags.DEFINE_float  ("learn_rate"         , 0.0002          , "the learning rate for GAN")
 flags.DEFINE_integer("training_steps"     , 10000           , "number of training steps")
 flags.DEFINE_integer("save_frequency"     , 50              , "how often (in training steps) to save the model to place defined by 'model_path'")
-flags.DEFINE_bool   ("show_count_loss"    , False           , "should the program show less at each save point (if true the output is more verbose but training is slower")
+flags.DEFINE_bool   ("update_loss"        , False           , "should the program show loss at each save point (if true the training is slower)")
 flags.DEFINE_float  ("generator_advantage", 0.0             , "how many times run generator optimization per each run of discriminator optimization.\n"+
                      "Any value <=0 means dynamic adjustment of advantage to keep G and D loss about equal.\n"+
                      "This helps prevent D loss going to 0")
@@ -47,6 +47,8 @@ def main(_):
         data = Data.Mnist(data_path)
     elif flags.FLAGS.data=="banners":
         data = Data.Banners(data_path)
+    elif flags.FLAGS.data=="artists":
+        data = Data.Artists(data_path)
     elif flags.FLAGS.data=="celebA":
         data = Data.CelebA(data_path,5000)
     elif flags.FLAGS.data=="wines":
@@ -58,7 +60,7 @@ def main(_):
 
     if flags.FLAGS.operation == "train":
         make_paths(model_path,log_path,sample_path)
-        cgan.train(model_path,log_path,sample_path,flags.FLAGS.training_steps,flags.FLAGS.learn_rate,flags.FLAGS.save_frequency,flags.FLAGS.show_count_loss,flags.FLAGS.generator_advantage)
+        cgan.train(model_path,log_path,sample_path,flags.FLAGS.training_steps,flags.FLAGS.learn_rate,flags.FLAGS.save_frequency,flags.FLAGS.update_loss,flags.FLAGS.generator_advantage)
     elif flags.FLAGS.operation == "test":
         make_paths(sample_path)
         if flags.FLAGS.samples_spec=="random":

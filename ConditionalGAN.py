@@ -8,6 +8,29 @@ from tensorflow.contrib.layers.python.layers import xavier_initializer
 from ops import *
 from utils import *
 
+class Adversary:
+    def __init__(self,summary,optimizer,loss_tensor):
+        # These vars are constant
+        self.summary     = summary
+        self.optimizer   = optimizer
+        self.loss_tensor = loss_tensor
+        # These vars get updated
+        self.feed_dict   = {}
+        self.step        = 0
+        self.loss        = float('inf')
+
+    def optimize(self,sess,summary_writer,update_loss=False ):
+        if update_loss:
+            result    = sess.run([self.optimizer,self.summary,self.loss_tensor],feed_dict=self.feed_dict)
+            self.loss = result[2]
+        else:
+            result    = sess.run([self.optimizer,self.summary],feed_dict=self.feed_dict)
+        self.step += 1
+        summary_writer.add_summary(result[1],self.step)
+
+    def __str__(self):
+        return "step={:d},loss={:.7f}".format(self.step,self.loss)
+
 class ConditionalGAN(object):
 
     def __init__(self,data,batch_size,z_dim):
@@ -34,83 +57,78 @@ class ConditionalGAN(object):
 
         self.saver   = tf.train.Saver(max_to_keep=5)
 
-    def train(self,model_path,log_path,sample_path,training_steps,learning_rate,save_frequency,show_count_loss,generator_advantage):
+    def train(self,model_path,log_path,sample_path,training_steps,learning_rate,save_frequency,update_loss,generator_advantage):
 
-        all_vars                = tf.trainable_variables()
+        all_vars = tf.trainable_variables()
 
-        discriminator_summary   = tf.summary.merge([
-            tf.summary.scalar("discriminator_loss",self.discriminator_loss), 
-            tf.summary.histogram("images_discriminator_pro",self.reals_discriminator[0])])
-        discriminator_vars      = [var for var in all_vars if var.name.startswith("discriminator/")]
-        discriminator_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="discriminator_optimizer").minimize(self.discriminator_loss,var_list=discriminator_vars)
-
-        generator_summary       = tf.summary.merge([
-            tf.summary.scalar("generator_loss",self.generator_loss), 
-            tf.summary.histogram("fakes_discriminator_pro",self.fakes_discriminator[0]),
-            tf.summary.image("fakes_generator_out",self.fakes_generator[0])])
-        generator_vars          = [var for var in all_vars if var.name.startswith("generator/")]
-        generator_optimizer     = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="generator_optimizer").minimize(self.generator_loss,var_list=generator_vars)
+        discriminator = Adversary(
+            tf.summary.merge([tf.summary.scalar("discriminator_loss",self.discriminator_loss), 
+                              tf.summary.histogram("images_discriminator_pro",self.reals_discriminator[0])]),
+            tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="discriminator_optimizer").minimize(
+                self.discriminator_loss,
+                var_list=[var for var in all_vars if var.name.startswith("discriminator/")]),
+            self.discriminator_loss)
+        
+        generator = Adversary(
+            tf.summary.merge([tf.summary.scalar("generator_loss",self.generator_loss), 
+                              tf.summary.histogram("fakes_discriminator_pro",self.fakes_discriminator[0]),
+                              tf.summary.image("fakes_generator_out",self.fakes_generator[0])]),
+            tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5,name="generator_optimizer").minimize(
+                self.generator_loss,
+                var_list=[var for var in all_vars if var.name.startswith("generator/")]),
+            self.generator_loss)
 
         np.random.seed()
         samples_input_noise  = np.random.uniform(1,-1,size=self.noise.shape)
-        samples_input_labels = self.data.get_random_labels(self.labels.shape)
- 
-        sess,last_saved_step     = self.restore_model(model_path)
-        real_generator_advantage = max(1.0,generator_advantage)
-        generator_step          = 0
+        samples_input_labels = self.data.get_random_labels(self.labels.shape) 
+        sess,last_saved_step = self.restore_model(model_path)
+
         with sess:
             summary_writer = tf.summary.FileWriter(log_path,graph=sess.graph)
             start = time.time()-0.000001 # to avoid division by 0
             for step in range(last_saved_step,training_steps):
-                now   = time.time()
-                speed = (step if step>0 else 1)/(now-start)
-                print("{:s}: d step is {:d}, g step is {:d}, speed is {:.4f} step/sec, ETA is {:s}".format(
-                    time.strftime("%D %T"),
-                    step,
-                    generator_step,
-                    speed,
-                    time.strftime("%D %T",time.localtime(now+((training_steps-step)/speed)))))
-
                 images,labels = self.data.get_batch(step,self.get_batch_size())
 
                 # Get the z
                 batch_z = np.random.uniform(-1,1,size=self.noise.shape).astype(np.float32)
 
-                discriminator_feed_dict = { 
+                discriminator.feed_dict = { 
                     self.images: images,
                     self.noise : batch_z,
                     self.labels: labels
                 }
-                generator_feed_dict = {
+                generator.feed_dict = {
                     self.noise : batch_z, 
                     self.labels: labels
                 }
-                # Dynamically adjust the generator advantage but not more often than save_frequency
-                if ((step%save_frequency)==0) and (show_count_loss or (generator_advantage<=0)):
-                    _, summary_str,discriminator_loss = sess.run([discriminator_optimizer,discriminator_summary,self.discriminator_loss],feed_dict=discriminator_feed_dict)
-                    summary_writer.add_summary(summary_str,step)
-                    while generator_step<((step*real_generator_advantage)-1):
-                        _, summary_str = sess.run([generator_optimizer,generator_summary],feed_dict=generator_feed_dict)
-                        summary_writer.add_summary(summary_str,generator_step)
-                        generator_step += 1
-                    # Run one last time, this time counting the loss
-                    _, summary_str,generator_loss = sess.run([generator_optimizer,generator_summary,self.generator_loss],feed_dict=generator_feed_dict)
-                    summary_writer.add_summary(summary_str,generator_step)
-                    generator_step += 1
-                    real_generator_advantage = generator_loss/discriminator_loss
-                    print("Step {:4d}: discriminator loss={:.7f}, generator loss={:.7f}, generator advantage={:.7f}".format(step,discriminator_loss,generator_loss,real_generator_advantage))
-                else:
-                    _, summary_str = sess.run([discriminator_optimizer,discriminator_summary],feed_dict=discriminator_feed_dict)
-                    summary_writer.add_summary(summary_str,step)
-                    while generator_step<(step*real_generator_advantage):
-                        _, summary_str = sess.run([generator_optimizer,generator_summary],feed_dict=generator_feed_dict)
-                        summary_writer.add_summary(summary_str,generator_step)
-                        generator_step += 1
 
                 if (step%save_frequency)==0:
+                    if generator_advantage<=0:
+                        discriminator.optimize(sess,summary_writer,True)
+                        while generator.loss>discriminator.loss:
+                            generator.optimize(sess,summary_writer,True)
+                    else:
+                        discriminator.optimize(sess,summary_writer,update_loss)
+                        while generator.step<(discriminator.step*max(1,generator_advantage)):
+                            generator.optimize(sess,summary_writer,update_loss)
+                    # Save as was requested
                     save_image("{:s}/train_{:04d}.png".format(sample_path,step),self.generate_images(sess,samples_input_noise,samples_input_labels))
                     print("Step {:4d}: model is saved in {:s}".format(step,self.saver.save(sess,model_path+"/"+self.data.name,global_step=step)))
                     last_saved_step = step
+                else:
+                    discriminator.optimize(sess,summary_writer)
+                    while generator.step<(discriminator.step*max(1,generator_advantage)):
+                        generator.optimize(sess,summary_writer)
+                        
+                now   = time.time()
+                speed = (step if step>0 else 1)/(now-start)
+                print("{:s}: global step is {:d}, discriminator=[{}], generator=[{}], speed is {:.4f} step/sec, ETA is {:s}".format(
+                    time.strftime("%D %T"),
+                    step,
+                    discriminator,
+                    generator,
+                    speed,
+                    time.strftime("%D %T",time.localtime(now+((training_steps-step)/speed)))))
 
             if step>last_saved_step:
                 save_path = self.saver.save(sess,model_path+"/"+self.data.name,global_step=training_steps)
@@ -134,7 +152,7 @@ class ConditionalGAN(object):
             return sess,0
         self.saver.restore(sess,latest_checkpoint)
         try:
-            return sess,int(re.sub("^"+model_path+"/model-([0-9]+)$","\\1",latest_checkpoint))
+            return sess,int(re.sub("^"+model_path+"/[A-Za-z]+-([0-9]+)$","\\1",latest_checkpoint))
         except ValueError:
             return sess,0
 
