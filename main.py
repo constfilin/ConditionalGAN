@@ -55,12 +55,12 @@ def main(_):
     else:
         raise ValueError("Data %s is not supported" % (flags.FLAGS.data))
 
-    cgan = ConditionalGAN.ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim)
-
     if flags.FLAGS.operation == "train":
+        cgan = ConditionalGAN.ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim,True)
         make_paths(model_path,log_path,sample_path)
         cgan.train(model_path,log_path,sample_path,flags.FLAGS.training_steps,flags.FLAGS.learn_rate,flags.FLAGS.save_frequency,flags.FLAGS.generator_advantage)
     elif flags.FLAGS.operation == "test":
+        cgan = ConditionalGAN.ConditionalGAN(data,flags.FLAGS.batch_size,flags.FLAGS.z_dim)
         make_paths(sample_path)
         if flags.FLAGS.samples_spec=="random":
             labels = data.get_random_labels((flags.FLAGS.samples,data.get_number_of_labels()))
