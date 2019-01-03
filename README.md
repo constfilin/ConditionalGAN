@@ -71,7 +71,7 @@ On MNIST image set this Conditional GAN seems to work fine generating images of 
 
 I believe it works only because all the labels are mutually exclusive, i.e. it does not make sense to try to generate an image that matches (say) labels "7" and "3" at the same time.
 
-The issue is that [this does not work](http://prntscr.com/lcjoxo) in case of [CelebA image set](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) where the attributes are not mutually exclusive. i.e. people might want to try using this Conditional GAN to generate images of celebrities with attributes like `Male`, `Young`, `Blond_Hair` and `Sideburns` at the same time. I.e. in this case the attributes are not mutually exclusive. Should the Conditional GAN work in this case?
+The issue is that [this does not work](http://prntscr.com/lcjoxo) in case of [CelebA image set](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) where the attributes are not mutually exclusive. i.e. people might want to try using this Conditional GAN to generate images of celebrities with attributes like `Male`, `Young`, `Blond_Hair` and `Sideburns` at the same time. I.e. in this case the attributes are not mutually exclusive. Should the Conditional GAN work in this case? On the other hand, if Conditional GANs cannot be made work in case of not mutually exclusive attributes, then who needs Conditional GANs at all when they can have multiple mutually exclusive GANs?
 
 ## Reference code
 [Conditional-GAN](https://github.com/zhangqianhui/Conditional-GAN/)
